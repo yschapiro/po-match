@@ -1,0 +1,14 @@
+name = "po-match-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Non-secret defaults — override via `wrangler secret put` if you need to.
+[vars]
+D365_BASE = "https://szy-prod.operations.dynamics.com"
+D365_PO_LINE_ENTITY = "PurchaseOrderLinesV2"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+#   APP_PASSWORD          — shared password for the team
+#   D365_CLIENT_ID        — Entra app client id
+#   D365_TENANT_ID        — Entra tenant id
+#   D365_CLIENT_SECRET    — Entra app client secret

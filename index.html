@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PO Match &mdash; D365 vs Vendor Invoice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success-bg: #ecfdf5;
+    --success-text: #065f46;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --danger-text: #991b1b;
+    --warn-bg: #fffbeb;
+    --warn-text: #92400e;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.05);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  header .sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .auth { display: flex; align-items: center; gap: 10px; }
+  .auth .who { font-size: 13px; color: var(--text-muted); }
+  .auth .who.ok { color: var(--success-text); font-weight: 500; }
+  .auth .who.ok::before { content: '\2713'; margin-right: 4px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm); }
+  .card h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .card .card-sub { color: var(--text-muted); font-size: 12px; margin-bottom: 16px; }
+
+  label { display: block; font-size: 12px; color: var(--text-muted); margin-top: 12px; margin-bottom: 4px; font-weight: 500; }
+  input[type=text], input[type=number], input:not([type]), select { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: white; font-size: 13px; font-family: inherit; color: var(--text); transition: border-color 0.1s, box-shadow 0.1s; }
+  input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+
+  button { padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 7px; background: white; color: var(--text); font-family: inherit; transition: all 0.1s; white-space: nowrap; }
+  button:hover:not(:disabled) { background: #f9fafb; border-color: #94a3b8; }
+  button.primary { background: var(--primary); color: white; border-color: var(--primary); }
+  button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+  button.ghost:hover { color: var(--text); background: #f1f5f9; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .row { display: flex; gap: 12px; align-items: flex-end; }
+  .row > div:not(.tight) { flex: 1; min-width: 0; }
+  .row > div.tight { flex: 0 0 auto; }
+
+  .empty { padding: 24px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border-strong); border-radius: 8px; font-size: 13px; margin-top: 16px; }
+
+  .file-drop { display: block; border: 2px dashed var(--border-strong); border-radius: 10px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+  .file-drop:hover { border-color: var(--primary); background: rgba(37,99,235,0.02); }
+  .file-drop.has-file { border-style: solid; border-color: var(--primary); background: rgba(37,99,235,0.04); }
+  .file-drop .name { font-weight: 500; font-size: 13px; }
+  .file-drop .hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+  .lines-preview { max-height: 220px; overflow: auto; margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; }
+  .lines-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .lines-preview th, .lines-preview td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .lines-preview th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
+  .lines-preview td.num, .lines-preview th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin: 20px 0; }
+  .stat { padding: 14px 16px; border-radius: 10px; background: white; border: 1px solid var(--border); }
+  .stat .num { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .stat.danger .num { color: var(--danger); }
+  .stat.warn .num { color: #d97706; }
+  .stat.success .num { color: #059669; }
+
+  .tabs { display: flex; gap: 2px; margin: 16px 0 0; padding: 3px; background: #f1f5f9; border-radius: 9px; width: fit-content; }
+  .tabs button { background: transparent; border: none; padding: 6px 14px; border-radius: 7px; color: var(--text-muted); font-weight: 500; }
+  .tabs button.active { background: white; color: var(--text); box-shadow: var(--shadow-sm); }
+
+  .results { margin-top: 12px; max-height: 600px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: white; }
+  .results table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .results th, .results td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  .results th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .results td.num, .results th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .results tr:last-child td { border-bottom: none; }
+  .results tr:hover td { background: #fafbfc; }
+
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge.match { background: var(--success-bg); color: var(--success-text); }
+  .badge.mismatch { background: var(--danger-bg); color: var(--danger-text); }
+  .badge.missing { background: var(--warn-bg); color: var(--warn-text); }
+
+  .controls { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 20px; }
+  .controls > div { flex: 0 0 auto; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; padding: 10px 16px; background: var(--text); color: white; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100; transform: translateY(8px); box-shadow: var(--shadow-md); }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--danger); }
+
+  .hidden { display: none !important; }
+
+  .err { color: var(--danger); font-size: 12px; }
+  .small { font-size: 12px; color: var(--text-muted); }
+
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; opacity: 0.7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: var(--text-muted); font-size: 11px; font-weight: 500; margin-left: 8px; vertical-align: middle; }
+  .pill.live { background: #dcfce7; color: #166534; }
+
+  .check-cell { width: 32px; text-align: center; }
+  .check-cell input { width: auto; cursor: pointer; }
+  .table-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; flex-wrap: wrap; }
+  .selection-count { font-size: 12px; color: var(--text-muted); }
+
+  /* Password overlay */
+  .pw-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.55); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
+  .pw-overlay.hidden { display: none; }
+  .pw-card { background: white; border-radius: 14px; padding: 32px; max-width: 400px; width: 100%; box-shadow: var(--shadow-md); }
+  .pw-card .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .pw-card .logo { width: 36px; height: 36px; }
+  .pw-card h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .pw-card .sub { font-size: 12px; color: var(--text-muted); }
+  .pw-card label { margin-top: 4px; }
+  .pw-card button { width: 100%; margin-top: 16px; padding: 10px; }
+  .pw-card .err { margin-top: 10px; min-height: 16px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="brand">
+    <div class="logo">$</div>
+    <div>
+      <h1>PO Match</h1>
+      <div class="sub">D365 purchase order &harr; vendor invoice</div>
+    </div>
+  </div>
+  <div class="auth">
+    <span class="who ok" id="who">Connected</span>
+    <button id="app-logout" class="ghost">Log out</button>
+  </div>
+</header>
+
+<div id="pw-overlay" class="pw-overlay hidden">
+  <form class="pw-card" id="pw-form">
+    <div class="brand">
+      <div class="logo">$</div>
+      <div>
+        <h2>PO Match</h2>
+        <div class="sub">Sign in to continue</div>
+      </div>
+    </div>
+    <label for="pw-input">Password</label>
+    <input type="password" id="pw-input" autocomplete="current-password" required autofocus>
+    <button type="submit" class="primary" id="pw-submit">Sign in</button>
+    <div class="err" id="pw-err"></div>
+  </form>
+</div>
+
+<div class="grid-2">
+
+  <div class="card">
+    <h2>1. Purchase order from D365 <span class="pill live" id="po-live-pill" style="display:none;">Live</span></h2>
+    <div class="card-sub">Pulls live PO lines via OData &mdash; nothing to upload</div>
+    <div class="row">
+      <div>
+        <label>PO number</label>
+        <input type="text" id="po-num" placeholder="e.g. 000123">
+      </div>
+      <div class="tight">
+        <label>&nbsp;</label>
+        <button class="primary" id="po-load">Load PO</button>
+      </div>
+    </div>
+    <div id="po-empty" class="empty">No PO loaded. Sign in, then enter a PO number.</div>
+    <div id="po-preview" class="hidden lines-preview">
+      <table>
+        <thead><tr>
+          <th class="check-cell"><input type="checkbox" id="po-select-all" title="Select all"></th>
+          <th>Vendor code</th><th>D365 item</th><th>Description</th>
+          <th class="num">Qty</th><th class="num">Price</th>
+        </tr></thead>
+        <tbody id="po-tbody"></tbody>
+      </table>
+    </div>
+    <div id="po-actions" class="table-actions hidden">
+      <span class="selection-count" id="po-sel-count">0 selected</span>
+      <button id="po-copy-items" disabled>Copy D365 item#s</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Vendor invoice</h2>
+    <div class="card-sub">Excel or CSV from the vendor</div>
+    <label class="file-drop" id="inv-drop" for="inv-file">
+      <div class="name" id="inv-name">Click to select an Excel/CSV file</div>
+      <div class="hint" id="inv-hint">or drag and drop here</div>
+      <input type="file" id="inv-file" accept=".xlsx,.xls,.csv" style="display:none">
+    </label>
+    <div id="inv-mapping" class="hidden">
+      <div class="row">
+        <div>
+          <label>Sheet</label>
+          <select id="inv-sheet"></select>
+        </div>
+        <div>
+          <label>Vendor item code column</label>
+          <select id="inv-code"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Unit price column</label>
+          <select id="inv-price"></select>
+        </div>
+        <div>
+          <label>Qty (optional)</label>
+          <select id="inv-qty"></select>
+        </div>
+        <div>
+          <label>Description (optional)</label>
+          <select id="inv-desc"></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="controls">
+  <div>
+    <label>Price tolerance ($)</label>
+    <input type="number" id="tol" value="0.00" step="0.01" min="0" style="width: 120px;">
+  </div>
+  <div class="tight"><label>&nbsp;</label><button class="primary" id="run">Compare</button></div>
+  <div class="tight"><label>&nbsp;</label><button id="export" disabled>Export to Excel</button></div>
+  <div style="flex: 1;"><label>&nbsp;</label><span class="err" id="err"></span></div>
+</div>
+
+<div id="output" class="hidden">
+  <div class="summary" id="summary"></div>
+  <div class="table-actions">
+    <div class="tabs" id="tabs">
+      <button data-tab="mismatch" class="active">Mismatches</button>
+      <button data-tab="missing-inv">Missing on invoice</button>
+      <button data-tab="missing-po">Missing on PO</button>
+      <button data-tab="match">Matches</button>
+      <button data-tab="all">All</button>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <span class="selection-count" id="results-sel-count">0 selected</span>
+      <button id="results-copy-items" disabled>Copy D365 item#s</button>
+    </div>
+  </div>
+  <div class="results">
+    <table>
+      <thead><tr>
+        <th class="check-cell"><input type="checkbox" id="results-select-all" title="Select all visible"></th>
+        <th>Status</th>
+        <th>Vendor code</th>
+        <th>D365 item</th>
+        <th>Description</th>
+        <th class="num">PO price</th>
+        <th class="num">Invoice price</th>
+        <th class="num">&Delta;</th>
+        <th class="num">PO qty</th>
+        <th class="num">Inv qty</th>
+      </tr></thead>
+      <tbody id="result-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── EDIT THIS to point at your deployed worker ─────────────────────────────
+const WORKER_URL = "https://po-match-proxy.yschapiro.workers.dev";
+// ───────────────────────────────────────────────────────────────────────────
+
+const $ = id => document.getElementById(id);
+let invRows = null, invWB = null;
+let poLines = null;
+let results = null;
+let appPassword = localStorage.getItem('po-match-pw') || '';
+
+const toast = (msg, isError = false) => {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2800);
+};
+
+const showErr = msg => { $('err').textContent = msg || ''; };
+
+// ── Password gate + worker calls ─────────────────────────────────────────────
+const apiFetch = async (path, opts = {}) => {
+  const headers = Object.assign({}, opts.headers || {}, { 'X-Password': appPassword });
+  const r = await fetch(WORKER_URL.replace(/\/+$/, '') + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    localStorage.removeItem('po-match-pw');
+    appPassword = '';
+    showPasswordOverlay('Session expired. Sign in again.');
+    throw new Error('Unauthorized');
+  }
+  return r;
+};
+
+const showPasswordOverlay = (errMsg) => {
+  $('pw-err').textContent = errMsg || '';
+  $('pw-input').value = '';
+  $('pw-overlay').classList.remove('hidden');
+  setTimeout(() => $('pw-input').focus(), 50);
+};
+
+const hidePasswordOverlay = () => {
+  $('pw-overlay').classList.add('hidden');
+};
+
+$('pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('pw-input').value;
+  $('pw-submit').disabled = true;
+  $('pw-submit').innerHTML = '<span class="spinner"></span>Checking';
+  $('pw-err').textContent = '';
+  try {
+    const r = await fetch(WORKER_URL.replace(/\/+$/, '') + '/auth', { headers: { 'X-Password': pw } });
+    if (r.ok) {
+      appPassword = pw;
+      localStorage.setItem('po-match-pw', pw);
+      hidePasswordOverlay();
+      toast('Signed in');
+    } else if (r.status === 401) {
+      $('pw-err').textContent = 'Wrong password.';
+    } else {
+      $('pw-err').textContent = `Server error (${r.status}).`;
+    }
+  } catch (err) {
+    $('pw-err').textContent = 'Could not reach server.';
+  } finally {
+    $('pw-submit').disabled = false;
+    $('pw-submit').textContent = 'Sign in';
+  }
+});
+
+$('app-logout').addEventListener('click', () => {
+  localStorage.removeItem('po-match-pw');
+  appPassword = '';
+  showPasswordOverlay();
+});
+
+const checkAuthOnLoad = async () => {
+  if (!appPassword) {
+    showPasswordOverlay();
+    return;
+  }
+  // Validate stored password against worker
+  try {
+    const r = await fetch(WORKER_URL.replace(/\/+$/, '') + '/auth', { headers: { 'X-Password': appPassword } });
+    if (!r.ok) {
+      localStorage.removeItem('po-match-pw');
+      appPassword = '';
+      showPasswordOverlay('Session expired. Sign in again.');
+    }
+  } catch (e) {
+    showPasswordOverlay('Could not reach server.');
+  }
+};
+
+// ── PO load ───────────────────────────────────────────────────────────────────
+$('po-num').addEventListener('keydown', e => { if (e.key === 'Enter') $('po-load').click(); });
+
+$('po-load').addEventListener('click', async () => {
+  showErr('');
+  const poNum = $('po-num').value.trim();
+  if (!poNum) { toast('Enter a PO number', true); return; }
+  const btn = $('po-load');
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Loading';
+    const r = await apiFetch('/po/' + encodeURIComponent(poNum));
+    const data = await r.json();
+    if (!r.ok) {
+      showErr(data.error || ('Load failed: ' + r.status));
+      toast('Load failed', true);
+      return;
+    }
+    poLines = data.lines || [];
+    renderPoLines();
+    if (!poLines.length) toast('No lines found for ' + poNum, true);
+    else toast('Loaded ' + poLines.length + ' lines');
+  } catch (e) {
+    showErr('Load failed: ' + e.message);
+    toast('Load failed', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load PO';
+  }
+});
+
+const renderPoLines = () => {
+  const tbody = $('po-tbody');
+  tbody.innerHTML = '';
+  poSelected.clear();
+  poLines.forEach((l, idx) => {
+    const item = String(l.ItemNumber || '').trim();
+    const tr = document.createElement('tr');
+    const checkbox = item
+      ? `<input type="checkbox" class="po-row-check" data-idx="${idx}">`
+      : '';
+    tr.innerHTML = `
+      <td class="check-cell">${checkbox}</td>
+      <td>${escapeHtml(l.ExternalItemNumber || '')}</td>
+      <td>${escapeHtml(item)}</td>
+      <td>${escapeHtml(l.LineDescription || '')}</td>
+      <td class="num">${l.OrderedPurchaseQuantity != null ? l.OrderedPurchaseQuantity : ''}</td>
+      <td class="num">${l.PurchasePrice != null ? Number(l.PurchasePrice).toFixed(2) : ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  const has = poLines.length > 0;
+  $('po-empty').classList.toggle('hidden', has);
+  $('po-preview').classList.toggle('hidden', !has);
+  $('po-actions').classList.toggle('hidden', !has);
+  $('po-live-pill').style.display = has ? 'inline-block' : 'none';
+  updatePoSelection();
+};
+
+// ── Invoice file ──────────────────────────────────────────────────────────────
+const dropEl = $('inv-drop');
+const fileEl = $('inv-file');
+['dragenter','dragover'].forEach(e => dropEl.addEventListener(e, ev => { ev.preventDefault(); dropEl.classList.add('has-file'); }));
+['dragleave'].forEach(e => dropEl.addEventListener(e, ev => { ev.preventDefault(); }));
+dropEl.addEventListener('drop', ev => {
+  ev.preventDefault();
+  if (ev.dataTransfer.files[0]) {
+    fileEl.files = ev.dataTransfer.files;
+    handleInvFile(ev.dataTransfer.files[0]);
+  }
+});
+fileEl.addEventListener('change', e => { if (e.target.files[0]) handleInvFile(e.target.files[0]); });
+
+const codeGuess = ['external.*item', 'vendor.*item', 'vendor.*code', 'vendor.*part', 'vendor.*sku', 'mfr.*part', 'mpn', 'manufacturer.*part', 'item.*number', '\\bsku\\b', 'part.*number', '\\bcode\\b'];
+const priceGuess = ['unit.*price', 'unit.*cost', '\\bprice\\b', '\\bcost\\b', '\\brate\\b'];
+const qtyGuess = ['\\bquantity\\b', '\\bqty\\b', 'units', 'ordered'];
+const descGuess = ['description', 'item.*name', 'product.*name', '\\bname\\b', '\\bdesc\\b'];
+
+const guessColumn = (headers, patterns) => {
+  for (const p of patterns) {
+    const re = new RegExp(p, 'i');
+    const hit = headers.find(h => re.test(String(h)));
+    if (hit) return hit;
+  }
+  return '';
+};
+
+const parseCSVAsStrings = (text) => {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+};
+
+const handleInvFile = async (file) => {
+  showErr('');
+  try {
+    if (/\.csv$/i.test(file.name)) {
+      // Parse CSV manually so leading zeros and other text-formatted codes survive.
+      const text = await file.text();
+      const aoa = parseCSVAsStrings(text);
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
+      invWB = { SheetNames: ['CSV'], Sheets: { CSV: sheet } };
+    } else {
+      const buf = await file.arrayBuffer();
+      invWB = XLSX.read(buf, { type: 'array' });
+    }
+    $('inv-name').textContent = file.name;
+    $('inv-hint').textContent = (file.size / 1024).toFixed(0) + ' KB &middot; ' + invWB.SheetNames.length + ' sheet(s)';
+    dropEl.classList.add('has-file');
+    const sel = $('inv-sheet');
+    sel.innerHTML = '';
+    invWB.SheetNames.forEach(n => {
+      const o = document.createElement('option');
+      o.value = o.textContent = n;
+      sel.appendChild(o);
+    });
+    $('inv-mapping').classList.remove('hidden');
+    loadInvSheet();
+  } catch (e) {
+    showErr('Could not read file: ' + e.message);
+  }
+};
+
+$('inv-sheet').addEventListener('change', () => loadInvSheet());
+
+const loadInvSheet = () => {
+  if (!invWB) return;
+  const name = $('inv-sheet').value;
+  const sheet = invWB.Sheets[name];
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(20, aoa.length); i++) {
+    const nonEmpty = (aoa[i] || []).filter(c => String(c).trim() !== '').length;
+    if (nonEmpty >= 3) { headerRow = i; break; }
+  }
+  const headers = (aoa[headerRow] || []).map((h, i) => {
+    const s = String(h).trim();
+    return s || '(col ' + (i + 1) + ')';
+  });
+  invRows = aoa.slice(headerRow + 1).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = r[i]);
+    return obj;
+  }).filter(r => Object.values(r).some(v => String(v).trim() !== ''));
+
+  const fields = [
+    { key: 'code', guess: codeGuess, optional: false },
+    { key: 'price', guess: priceGuess, optional: false },
+    { key: 'qty', guess: qtyGuess, optional: true },
+    { key: 'desc', guess: descGuess, optional: true },
+  ];
+  currentMappingKey = mappingKey(headers);
+  const saved = loadMapping(currentMappingKey);
+  let usedSaved = false;
+  fields.forEach(f => {
+    const sel = $('inv-' + f.key);
+    sel.innerHTML = '';
+    if (f.optional) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(none)';
+      sel.appendChild(o);
+    }
+    headers.forEach(h => {
+      const o = document.createElement('option');
+      o.value = o.textContent = h;
+      sel.appendChild(o);
+    });
+    const savedVal = saved && saved[f.key];
+    if (saved && (savedVal === '' || headers.includes(savedVal))) {
+      sel.value = savedVal;
+      usedSaved = true;
+    } else {
+      const guess = guessColumn(headers, f.guess);
+      if (guess) sel.value = guess;
+      else if (!f.optional) sel.value = headers[0] || '';
+    }
+  });
+  if (usedSaved) toast('Restored saved column mapping');
+};
+
+let currentMappingKey = null;
+const mappingKey = (headers) => 'invmap:' + headers.map(h => String(h).trim().toLowerCase()).join('|');
+const loadMapping = (key) => {
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+};
+const saveMapping = (key, m) => {
+  try { localStorage.setItem(key, JSON.stringify(m)); } catch (e) {}
+};
+
+// ── Matching logic ───────────────────────────────────────────────────────────
+const norm = v => String(v == null ? '' : v).trim().toUpperCase();
+const num = v => {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v).replace(/[$,\s]/g, ''));
+  return isNaN(n) ? null : n;
+};
+
+const aggregatePo = (lines) => {
+  const map = new Map();
+  for (const l of lines) {
+    const code = norm(l.ExternalItemNumber);
+    if (!code) continue;
+    const price = num(l.PurchasePrice);
+    const qty = num(l.OrderedPurchaseQuantity);
+    const desc = String(l.LineDescription ?? '').trim();
+    const item = String(l.ItemNumber ?? '').trim();
+    if (!map.has(code)) map.set(code, { code, price, qty, desc, items: item ? [item] : [], lines: 1, priceConflict: false });
+    else {
+      const e = map.get(code);
+      e.lines++;
+      if (qty != null) e.qty = (e.qty || 0) + qty;
+      if (price != null && e.price != null && Math.abs(price - e.price) > 0.001) e.priceConflict = true;
+      if (item && !e.items.includes(item)) e.items.push(item);
+    }
+  }
+  return map;
+};
+
+const aggregateInv = (rows, codeCol, priceCol, qtyCol, descCol) => {
+  const map = new Map();
+  for (const r of rows) {
+    const code = norm(r[codeCol]);
+    if (!code) continue;
+    const price = num(r[priceCol]);
+    const qty = qtyCol ? num(r[qtyCol]) : null;
+    const desc = descCol ? String(r[descCol] ?? '').trim() : '';
+    if (!map.has(code)) map.set(code, { code, price, qty, desc, lines: 1, priceConflict: false });
+    else {
+      const e = map.get(code);
+      e.lines++;
+      if (qty != null) e.qty = (e.qty || 0) + qty;
+      if (price != null && e.price != null && Math.abs(price - e.price) > 0.001) e.priceConflict = true;
+      if (!e.desc && desc) e.desc = desc;
+    }
+  }
+  return map;
+};
+
+$('run').addEventListener('click', () => {
+  showErr('');
+  if (!poLines || !poLines.length) { showErr('Load a PO first.'); return; }
+  if (!invRows) { showErr('Upload a vendor invoice first.'); return; }
+  const tol = parseFloat($('tol').value) || 0;
+  if (currentMappingKey) {
+    saveMapping(currentMappingKey, {
+      code: $('inv-code').value,
+      price: $('inv-price').value,
+      qty: $('inv-qty').value,
+      desc: $('inv-desc').value,
+    });
+  }
+  const poMap = aggregatePo(poLines);
+  const invMap = aggregateInv(invRows, $('inv-code').value, $('inv-price').value, $('inv-qty').value, $('inv-desc').value);
+
+  results = [];
+  const codes = new Set([...poMap.keys(), ...invMap.keys()]);
+  for (const code of codes) {
+    const po = poMap.get(code);
+    const inv = invMap.get(code);
+    let status, delta = null;
+    if (po && !inv) status = 'missing-inv';
+    else if (!po && inv) status = 'missing-po';
+    else {
+      if (po.price == null || inv.price == null) status = 'mismatch';
+      else {
+        delta = +(inv.price - po.price).toFixed(4);
+        status = Math.abs(delta) <= tol ? 'match' : 'mismatch';
+      }
+    }
+    results.push({
+      status, code,
+      itemNumber: po && po.items && po.items.length ? po.items.join(', ') : '',
+      desc: (po && po.desc) || (inv && inv.desc) || '',
+      poPrice: po ? po.price : null,
+      invPrice: inv ? inv.price : null,
+      delta,
+      poQty: po ? po.qty : null,
+      invQty: inv ? inv.qty : null,
+      poConflict: po ? po.priceConflict : false,
+      invConflict: inv ? inv.priceConflict : false,
+    });
+  }
+  const order = { mismatch: 0, 'missing-inv': 1, 'missing-po': 2, match: 3 };
+  results.sort((a, b) => order[a.status] - order[b.status] || a.code.localeCompare(b.code));
+
+  render();
+  $('export').disabled = false;
+  $('output').classList.remove('hidden');
+});
+
+let currentTab = 'mismatch';
+$('tabs').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
+  e.target.classList.add('active');
+  currentTab = e.target.dataset.tab;
+  render();
+});
+
+const fmt = v => v == null ? '' : (typeof v === 'number' ? v.toFixed(2) : String(v));
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const escapeAttr = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const copyToClipboard = (text) => {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); resolve(); } catch (e) { reject(e); }
+    document.body.removeChild(ta);
+  });
+};
+
+// Selections: keyed by row identity. PO uses line index, results use vendor code.
+const poSelected = new Set();
+const resultsSelected = new Set();
+
+const updatePoSelection = () => {
+  const count = poSelected.size;
+  $('po-sel-count').textContent = count + ' selected';
+  $('po-copy-items').disabled = count === 0;
+  $('po-copy-items').textContent = count > 0 ? `Copy D365 item#s (${count})` : 'Copy D365 item#s';
+  // sync header checkbox
+  const total = (poLines || []).filter(l => String(l.ItemNumber ?? '').trim()).length;
+  const sa = $('po-select-all');
+  sa.checked = count > 0 && count === total;
+  sa.indeterminate = count > 0 && count < total;
+};
+
+const updateResultsSelection = () => {
+  const count = resultsSelected.size;
+  $('results-sel-count').textContent = count + ' selected';
+  $('results-copy-items').disabled = count === 0;
+  $('results-copy-items').textContent = count > 0 ? `Copy D365 item#s (${count})` : 'Copy D365 item#s';
+  // sync header checkbox against currently visible rows
+  const visibleRows = (results || []).filter(r => (currentTab === 'all' || r.status === currentTab) && r.itemNumber);
+  const visibleSelected = visibleRows.filter(r => resultsSelected.has(r.code)).length;
+  const sa = $('results-select-all');
+  sa.checked = visibleRows.length > 0 && visibleSelected === visibleRows.length;
+  sa.indeterminate = visibleSelected > 0 && visibleSelected < visibleRows.length;
+};
+
+const statusLabel = {
+  match: '<span class="badge match">Match</span>',
+  mismatch: '<span class="badge mismatch">Mismatch</span>',
+  'missing-inv': '<span class="badge missing">Not on invoice</span>',
+  'missing-po': '<span class="badge missing">Not on PO</span>',
+};
+
+const render = () => {
+  if (!results) return;
+  const counts = { match: 0, mismatch: 0, 'missing-inv': 0, 'missing-po': 0 };
+  results.forEach(r => counts[r.status]++);
+  $('summary').innerHTML = `
+    <div class="stat"><div class="num">${results.length}</div><div class="lbl">Total codes</div></div>
+    <div class="stat danger"><div class="num">${counts.mismatch}</div><div class="lbl">Price mismatches</div></div>
+    <div class="stat warn"><div class="num">${counts['missing-inv']}</div><div class="lbl">On PO, not on invoice</div></div>
+    <div class="stat warn"><div class="num">${counts['missing-po']}</div><div class="lbl">On invoice, not on PO</div></div>
+    <div class="stat success"><div class="num">${counts.match}</div><div class="lbl">Matched</div></div>
+  `;
+  const tbody = $('result-tbody');
+  tbody.innerHTML = '';
+  const filtered = currentTab === 'all' ? results : results.filter(r => r.status === currentTab);
+  for (const r of filtered) {
+    const tr = document.createElement('tr');
+    const checkbox = r.itemNumber
+      ? `<input type="checkbox" class="results-row-check" data-code="${escapeAttr(r.code)}"${resultsSelected.has(r.code) ? ' checked' : ''}>`
+      : '';
+    tr.innerHTML = `
+      <td class="check-cell">${checkbox}</td>
+      <td>${statusLabel[r.status]}</td>
+      <td>${escapeHtml(r.code)}</td>
+      <td>${escapeHtml(r.itemNumber || '')}</td>
+      <td>${escapeHtml(r.desc || '')}</td>
+      <td class="num">${fmt(r.poPrice)}${r.poConflict ? ' &#9888;' : ''}</td>
+      <td class="num">${fmt(r.invPrice)}${r.invConflict ? ' &#9888;' : ''}</td>
+      <td class="num">${fmt(r.delta)}</td>
+      <td class="num">${fmt(r.poQty)}</td>
+      <td class="num">${fmt(r.invQty)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--text-muted); padding: 32px;">No rows in this category</td></tr>';
+  }
+  updateResultsSelection();
+};
+
+$('export').addEventListener('click', () => {
+  if (!results) return;
+  const labels = { match: 'Match', mismatch: 'Mismatch', 'missing-inv': 'Missing on invoice', 'missing-po': 'Missing on PO' };
+  const data = results.map(r => ({
+    Status: labels[r.status],
+    'Vendor code': r.code,
+    'D365 item': r.itemNumber || '',
+    Description: r.desc,
+    'PO price': r.poPrice,
+    'Invoice price': r.invPrice,
+    'Delta': r.delta,
+    'PO qty': r.poQty,
+    'Invoice qty': r.invQty,
+    'PO price conflict': r.poConflict ? 'Y' : '',
+    'Invoice price conflict': r.invConflict ? 'Y' : '',
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparison');
+  XLSX.writeFile(wb, 'po-invoice-comparison.xlsx');
+});
+
+// PO preview: row + select-all + copy
+$('po-tbody').addEventListener('change', (e) => {
+  const cb = e.target.closest('.po-row-check');
+  if (!cb) return;
+  const idx = Number(cb.dataset.idx);
+  if (cb.checked) poSelected.add(idx);
+  else poSelected.delete(idx);
+  updatePoSelection();
+});
+
+$('po-select-all').addEventListener('change', (e) => {
+  const checked = e.target.checked;
+  poSelected.clear();
+  document.querySelectorAll('.po-row-check').forEach(cb => {
+    cb.checked = checked;
+    if (checked) poSelected.add(Number(cb.dataset.idx));
+  });
+  updatePoSelection();
+});
+
+$('po-copy-items').addEventListener('click', () => {
+  if (!poSelected.size) return;
+  const items = [];
+  poSelected.forEach(idx => {
+    const it = String((poLines[idx] || {}).ItemNumber || '').trim();
+    if (it) items.push(it);
+  });
+  if (!items.length) return;
+  copyToClipboard(items.join('\n')).then(
+    () => toast(`Copied ${items.length} item#${items.length === 1 ? '' : 's'}`),
+    () => toast('Copy failed', true)
+  );
+});
+
+// Results: row + select-all + copy
+$('result-tbody').addEventListener('change', (e) => {
+  const cb = e.target.closest('.results-row-check');
+  if (!cb) return;
+  const code = cb.dataset.code;
+  if (cb.checked) resultsSelected.add(code);
+  else resultsSelected.delete(code);
+  updateResultsSelection();
+});
+
+$('results-select-all').addEventListener('change', (e) => {
+  const checked = e.target.checked;
+  document.querySelectorAll('.results-row-check').forEach(cb => {
+    cb.checked = checked;
+    const code = cb.dataset.code;
+    if (checked) resultsSelected.add(code);
+    else resultsSelected.delete(code);
+  });
+  updateResultsSelection();
+});
+
+$('results-copy-items').addEventListener('click', () => {
+  if (!resultsSelected.size) return;
+  const codeOrder = new Map();
+  (results || []).forEach((r, i) => codeOrder.set(r.code, i));
+  const selected = (results || []).filter(r => resultsSelected.has(r.code) && r.itemNumber);
+  // Preserve current sort order, then split out comma-joined item numbers
+  const items = [];
+  selected.forEach(r => {
+    String(r.itemNumber).split(',').map(s => s.trim()).filter(Boolean).forEach(s => items.push(s));
+  });
+  if (!items.length) return;
+  copyToClipboard(items.join('\n')).then(
+    () => toast(`Copied ${items.length} item#${items.length === 1 ? '' : 's'}`),
+    () => toast('Copy failed', true)
+  );
+});
+
+checkAuthOnLoad();
+</script>
+</body>
+</html>
