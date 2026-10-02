@@ -1,3 +1,65 @@
+# >>> backup tool: never upload these (keep this block; backup.ps1 checks for it) >>>
+# Passwords, keys and saved logins. These stay on this PC and the server only.
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.p12
+*.key
+*token_cache*.bin
+*auth_cache*.bin
+token.b64
+.secret
+.secret*
+*secret*.txt
+*token*.txt
+*api key*.txt
+*password*.txt
+credentials*.json
+dev_config.json
+
+# Business data and output. The server backup has these; GitHub is for code.
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+*.log.*
+logs/
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.pdf
+*.zip
+*.7z
+*.msg
+*.eml
+*.pkl
+*.parquet
+*.bak
+*.mdb
+*.accdb
+desk.db*
+db_backups/
+
+# Downloaded libraries and Python leftovers. Rebuilt with pip / npm.
+.venv/
+venv/
+env/
+node_modules/
+__pycache__/
+*.pyc
+
+# Editor and Windows junk
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+~$*
+# <<< backup tool <<<
+
 token_cache.bin
 __pycache__/
 *.pyc
